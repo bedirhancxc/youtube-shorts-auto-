@@ -1,0 +1,36 @@
+name: Shorts pipeline
+on:
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: 'Upload to YouTube (requires secrets)'
+        type: boolean
+        default: false
+  schedule:
+    - cron: '0 12 * * *'
+permissions:
+  contents: read
+jobs:
+  video:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install -r requirements.txt
+      - name: Render next short
+        run: python scripts/render.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: shorts-video
+          path: output/*.mp4
+      - name: Upload when authorized
+        if: ${{ (github.event_name == 'schedule' || inputs.publish == true) && env.HAS_CREDS == 'true' }}
+        env:
+          HAS_CREDS: ${{ secrets.YOUTUBE_REFRESH_TOKEN != '' && secrets.YOUTUBE_CLIENT_ID != '' && secrets.YOUTUBE_CLIENT_SECRET != '' }}
+          YOUTUBE_REFRESH_TOKEN: ${{ secrets.YOUTUBE_REFRESH_TOKEN }}
+          YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
+          YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
+        run: python scripts/upload.py
